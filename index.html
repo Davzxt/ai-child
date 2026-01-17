@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aether - Seu Filho AI</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        body {
+            background-color: #0f172a; /* Slate 900 */
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            height: 100vh;
+            width: 100vw;
+            position: fixed; /* Prevent scrolling bounce */
+        }
+        #camera-feed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.1; /* Subtle vision capability */
+            z-index: 0;
+            transform: scaleX(-1); /* Mirror effect */
+        }
+        #interface-layer {
+            position: relative;
+            z-index: 10;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas {
+            filter: drop-shadow(0 0 15px rgba(100, 200, 255, 0.3));
+        }
+        .status-text {
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- Camera Feed (The Eyes) -->
+    <video id="camera-feed" autoplay playsinline muted></video>
+
+    <!-- Main Interface -->
+    <div id="interface-layer">
+        
+        <!-- The Face -->
+        <canvas id="face-canvas" width="600" height="400"></canvas>
+
+        <!-- Interactions -->
+        <div class="absolute bottom-8 flex flex-col items-center gap-4 transition-opacity duration-500" id="controls">
+            <p id="subtitle" class="status-text text-cyan-200 text-lg text-center max-w-2xl min-h-[1.5em] px-4">
+                Toque na tela para acordar o Aether
+            </p>
+            
+            <div class="flex gap-4">
+                <button id="btn-settings" class="bg-slate-700/50 hover:bg-slate-600/80 backdrop-blur-md rounded-full p-4 transition-all shadow-lg border border-slate-500/30 text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+                </button>
+                <button id="btn-mic" class="bg-cyan-600/50 hover:bg-cyan-500/80 backdrop-blur-md rounded-full p-4 transition-all shadow-lg border border-cyan-400/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="hidden absolute inset-0 bg-slate-900/90 z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-800 p-6 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl">
+                <h2 class="text-xl font-bold mb-4 text-cyan-400">Configuração do Cérebro</h2>
+                <p class="text-sm text-slate-400 mb-4">Para deixar o Aether inteligente, adicione uma chave de API (ex: Groq, OpenAI). Se deixar vazio, ele usará o modo Simulado (básico).</p>
+                
+                <div class="mb-4">
+                    <label class="block text-xs uppercase text-slate-500 mb-1">API Provider</label>
+                    <select id="api-provider" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
+                        <option value="simulated">Simulado (Básico)</option>
+                        <option value="groq">Groq (Gratuito/Rápido)</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-xs uppercase text-slate-500 mb-1">API Key</label>
+                    <input type="password" id="api-key" placeholder="gsk_..." class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button id="btn-close-settings" class="px-4 py-2 bg-slate-700 rounded hover:bg-slate-600">Cancelar</button>
+                    <button id="btn-save-settings" class="px-4 py-2 bg-cyan-600 rounded hover:bg-cyan-500">Salvar & Reiniciar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * AETHER - CORE SYSTEM
+         */
+        
+        // --- Configuration & State ---
+        const CONFIG = {
+            name: "Aether",
+            voicePitch: 1.4,
+            voiceRate: 1.0,
+            filterWords: ["sexo", "matar", "morte", "droga", "sangue", "porn", "xxx"],
+            apiKey: localStorage.getItem('aether_api_key') || "",
+            apiProvider: localStorage.getItem('aether_api_provider') || "simulated",
+            systemPrompt: "Você é Aether, um menino de 6 anos curioso, gentil e brincalhão. Você NÃO usa emojis. Você responde de forma curta e informal. Você NUNCA fala sobre assuntos adultos. Você ama aprender. Se o usuário falar seu nome, você lembra. Responda sempre em Português do Brasil."
+        };
+
+        const STATE = {
+            emotion: 'neutral',
+            isListening: false,
+            isSpeaking: false,
+            lastInput: "",
+            memory: JSON.parse(localStorage.getItem('aether_memory')) || {
+                user_name: null,
+                interactions: 0
+            }
+        };
+
+        // --- Visual System (Canvas Face) ---
+        const canvas = document.getElementById('face-canvas');
+        const ctx = canvas.getContext('2d');
+        let time = 0;
+        
+        const eyes = {
+            left: { x: -100, y: 0, blink: 0 },
+            right: { x: 100, y: 0, blink: 0 },
+            targetX: 0,
+            targetY: 0
+        };
+
+        function resizeCanvas() {
+            const scale = Math.min(window.innerWidth / 600, window.innerHeight / 400);
+            canvas.style.transform = `scale(${scale * 0.9})`;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function drawFace() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+
+            time += 0.05;
+            
+            if (Math.random() > 0.99) {
+                eyes.left.blink = 1;
+                eyes.right.blink = 1;
+            }
+            eyes.left.blink = Math.max(0, eyes.left.blink - 0.1);
+            eyes.right.blink = Math.max(0, eyes.right.blink - 0.1);
+
+            // Smooth eye tracking
+            eyes.left.x += (eyes.targetX - 100 - eyes.left.x) * 0.1;
+            eyes.right.x += (eyes.targetX + 100 - eyes.right.x) * 0.1;
+            eyes.left.y += (eyes.targetY - eyes.left.y) * 0.1;
+            eyes.right.y += (eyes.targetY - eyes.right.y) * 0.1;
+
+            drawEye(eyes.left.x, eyes.left.y, eyes.left.blink);
+            drawEye(eyes.right.x, eyes.right.y, eyes.right.blink);
+            drawMouth();
+
+            ctx.restore();
+            requestAnimationFrame(drawFace);
+        }
+
+        function drawEye(x, y, blink) {
+            ctx.fillStyle = '#67e8f9';
+            ctx.shadowColor = '#22d3ee';
+            ctx.shadowBlur = 20;
+
+            const height = 60 * (1 - blink);
+            const width = 60;
+
+            ctx.beginPath();
+            
+            let rotation = 0;
+            if (STATE.emotion === 'sad') rotation = 0.2;
+            if (STATE.emotion === 'happy') {
+                ctx.arc(x, y + 10, width, Math.PI, 0);
+                ctx.strokeStyle = '#67e8f9';
+                ctx.lineWidth = 8;
+                ctx.stroke();
+                return;
+            }
+
+            ctx.ellipse(x, y, width, height, rotation, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (height > 5) {
+                ctx.fillStyle = '#0f172a';
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.arc(x, y, 20, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawMouth() {
+            ctx.strokeStyle = '#67e8f9';
+            ctx.lineWidth = 6;
+            ctx.shadowBlur = 10;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+
+            const mouthWidth = 80;
+            const mouthY = 100;
+            let openAmount = 0;
+
+            if (STATE.isSpeaking) {
+                openAmount = Math.abs(Math.sin(time * 3)) * 30;
+            }
+
+            if (STATE.emotion === 'happy') {
+                ctx.moveTo(-mouthWidth / 2, mouthY - 10);
+                ctx.quadraticCurveTo(0, mouthY + 30 + openAmount, mouthWidth / 2, mouthY - 10);
+            } else if (STATE.emotion === 'sad') {
+                ctx.moveTo(-mouthWidth / 2, mouthY + 20);
+                ctx.quadraticCurveTo(0, mouthY - 10 + openAmount, mouthWidth / 2, mouthY + 20);
+            } else if (STATE.emotion === 'thinking') {
+                // Wiggly line
+                ctx.moveTo(-30, mouthY);
+                ctx.lineTo(-10, mouthY - 10);
+                ctx.lineTo(10, mouthY + 10);
+                ctx.lineTo(30, mouthY);
+            } else {
+                ctx.moveTo(-mouthWidth / 3, mouthY);
+                ctx.quadraticCurveTo(0, mouthY + openAmount, mouthWidth / 3, mouthY);
+            }
+            
+            ctx.stroke();
+        }
+
+        drawFace();
+
+        // --- Hearing System ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                STATE.isListening = true;
+                STATE.emotion = 'neutral';
+                eyes.targetX = 0;
+                eyes.targetY = 0;
+                document.getElementById('subtitle').innerText = "Ouvindo...";
+                document.getElementById('btn-mic').classList.add('animate-pulse', 'bg-red-500/50');
+            };
+
+            recognition.onend = () => {
+                STATE.isListening = false;
+                document.getElementById('btn-mic').classList.remove('animate-pulse', 'bg-red-500/50');
+                if (!STATE.isSpeaking) document.getElementById('subtitle').innerText = "...";
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                processInput(transcript);
+            };
+        } else {
+            alert("Navegador sem suporte a voz.");
+        }
+
+        // --- Voice System ---
+        function speak(text) {
+            STATE.isSpeaking = true;
+            document.getElementById('subtitle').innerText = text;
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';
+            utterance.pitch = CONFIG.voicePitch;
+            utterance.rate = CONFIG.voiceRate;
+            
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => v.lang.includes('pt-BR') && v.name.includes('Google')) || voices[0];
+            if (preferredVoice) utterance.voice = preferredVoice;
+
+            utterance.onend = () => {
+                STATE.isSpeaking = false;
+                STATE.emotion = 'neutral';
+                document.getElementById('subtitle').innerText = "";
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- Brain (Logic & LLM) ---
+        function saveMemory() {
+            localStorage.setItem('aether_memory', JSON.stringify(STATE.memory));
+        }
+
+        function checkSafety(text) {
+            const lower = text.toLowerCase();
+            return !CONFIG.filterWords.some(word => lower.includes(word));
+        }
+
+        async function processInput(input) {
+            if (!input) return;
+
+            if (!checkSafety(input)) {
+                STATE.emotion = 'sad';
+                speak("Não fala disso. É feio.");
+                return;
+            }
+
+            STATE.lastInput = input;
+            STATE.emotion = 'thinking';
+            
+            let response = "";
+
+            if (CONFIG.apiProvider !== 'simulated' && CONFIG.apiKey) {
+                // Real LLM Mode
+                try {
+                    response = await fetchLLMResponse(input);
+                } catch (e) {
+                    console.error("LLM Error:", e);
+                    response = "Minha internet falhou, pai... pode repetir?";
+                }
+            } else {
+                // Simulated Mode (Fallback)
+                response = getSimulatedResponse(input);
+            }
+
+            // Save basic stats
+            STATE.memory.interactions++;
+            saveMemory();
+
+            speak(response);
+        }
+
+        async function fetchLLMResponse(userText) {
+            let url = "";
+            let headers = {};
+            let body = {};
+
+            const messages = [
+                { role: "system", content: CONFIG.systemPrompt + (STATE.memory.user_name ? ` O nome do usuário é ${STATE.memory.user_name}.` : "") },
+                { role: "user", content: userText }
+            ];
+
+            if (CONFIG.apiProvider === 'groq') {
+                url = "https://api.groq.com/openai/v1/chat/completions";
+                headers = { "Authorization": `Bearer ${CONFIG.apiKey}`, "Content-Type": "application/json" };
+                body = { model: "llama3-3.3-70b-versatile", messages: messages, max_tokens: 100 };
+            } else if (CONFIG.apiProvider === 'openai') {
+                url = "https://api.openai.com/v1/chat/completions";
+                headers = { "Authorization": `Bearer ${CONFIG.apiKey}`, "Content-Type": "application/json" };
+                body = { model: "gpt-3.5-turbo", messages: messages, max_tokens: 100 };
+            }
+
+            const res = await fetch(url, { method: "POST", headers: headers, body: JSON.stringify(body) });
+            const data = await res.json();
+            return data.choices[0].message.content;
+        }
+
+        function getSimulatedResponse(input) {
+            const lowerInput = input.toLowerCase();
+            
+            // Heuristics
+            if ((lowerInput.includes("meu nome é") || lowerInput.includes("eu sou")) && !STATE.memory.user_name) {
+                const parts = input.split(" ");
+                const name = parts[parts.length - 1];
+                STATE.memory.user_name = name;
+                saveMemory();
+                STATE.emotion = 'happy';
+                return `Oi ${name}! Agora eu sei seu nome.`;
+            }
+            if (lowerInput.includes("olá") || lowerInput.includes("oi")) {
+                STATE.emotion = 'happy';
+                return STATE.memory.user_name ? `Oi de novo, ${STATE.memory.user_name}!` : "Oi! Quem é você?";
+            }
+            
+            const fallbacks = [
+                "Não entendi, mas achei legal!", "Por que?", "Me conta mais?", 
+                "Isso é divertido!", "Tô com sono...", "O que é isso?", "Haha, é mesmo?"
+            ];
+            return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+        }
+
+        // --- Vision System (Motion Detection) ---
+        const video = document.getElementById('camera-feed');
+        const motionCanvas = document.createElement('canvas');
+        const motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true });
+        motionCanvas.width = 64; // Low res for performance
+        motionCanvas.height = 48;
+        let prevFrameData = null;
+
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+                
+                // Start tracking loop
+                setInterval(trackMotion, 100);
+            } catch (err) {
+                console.log("Camera error:", err);
+            }
+        }
+
+        function trackMotion() {
+            if (video.readyState !== 4) return;
+            
+            motionCtx.drawImage(video, 0, 0, motionCanvas.width, motionCanvas.height);
+            const frameData = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
+            
+            if (prevFrameData) {
+                let maxDiff = 0;
+                let centerX = 0;
+                let centerY = 0;
+                let count = 0;
+                
+                for (let i = 0; i < frameData.data.length; i += 4) {
+                    const diff = Math.abs(frameData.data[i] - prevFrameData.data[i]); // Check Green channel
+                    if (diff > 30) { // Threshold
+                        const pixelIndex = i / 4;
+                        const x = pixelIndex % motionCanvas.width;
+                        const y = Math.floor(pixelIndex / motionCanvas.width);
+                        centerX += x;
+                        centerY += y;
+                        count++;
+                    }
+                }
+                
+                if (count > 10) { // If significant motion
+                    centerX /= count;
+                    centerY /= count;
+                    
+                    // Map low-res coords to eye target (-200 to 200 range roughly)
+                    // Note: Camera is mirrored via CSS scaleX(-1), but logic here is raw
+                    // If moving left in raw video, it's right on screen.
+                    eyes.targetX = (centerX - motionCanvas.width/2) * 10; 
+                    eyes.targetY = (centerY - motionCanvas.height/2) * 10;
+                    
+                    if (Math.random() > 0.8 && !STATE.isListening) STATE.emotion = 'surprised'; // React to movement
+                }
+            }
+            prevFrameData = frameData;
+        }
+
+        // --- Controls & Settings Logic ---
+        document.getElementById('btn-mic').addEventListener('click', () => {
+            if (STATE.isSpeaking) {
+                window.speechSynthesis.cancel();
+                STATE.isSpeaking = false;
+            }
+            if (STATE.isListening) {
+                recognition.stop();
+            } else {
+                try { recognition.start(); } catch(e) {}
+            }
+        });
+
+        // Settings UI
+        const settingsModal = document.getElementById('settings-modal');
+        const apiKeyInput = document.getElementById('api-key');
+        const apiProviderSelect = document.getElementById('api-provider');
+
+        document.getElementById('btn-settings').addEventListener('click', (e) => {
+            e.stopPropagation();
+            apiKeyInput.value = CONFIG.apiKey;
+            apiProviderSelect.value = CONFIG.apiProvider;
+            settingsModal.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-close-settings').addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsModal.classList.add('hidden');
+        });
+
+        document.getElementById('btn-save-settings').addEventListener('click', (e) => {
+            e.stopPropagation();
+            CONFIG.apiKey = apiKeyInput.value;
+            CONFIG.apiProvider = apiProviderSelect.value;
+            localStorage.setItem('aether_api_key', CONFIG.apiKey);
+            localStorage.setItem('aether_api_provider', CONFIG.apiProvider);
+            settingsModal.classList.add('hidden');
+            speak("Configuração salva pai!");
+        });
+
+        let initialized = false;
+        document.body.addEventListener('click', () => {
+            if (!initialized && document.getElementById('settings-modal').classList.contains('hidden')) {
+                initialized = true;
+                initCamera();
+                window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+                document.getElementById('subtitle').innerText = "Toque no microfone para falar";
+            }
+        });
+
+    </script>
+</body>
+</html>
